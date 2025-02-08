@@ -8,8 +8,8 @@ from typing import Literal
 
 
 class Intent(BaseModel):
-    intent: List[Literal["Expense", "Query", "Others"]] = Field(
-        description='Type of Query, if user want to add expense output should be "Expense", if user want to query about expenses output should be "Query". Else output should be "Others". You can also output both Query and Expense.'
+    intent: Literal["Expense", "Query", "Others"] = Field(
+        description='Type of Query, if user want to add expense output should be "Expense", if user want to query about expenses output should be "Query". Else output should be "Others".'
     )
 
 
@@ -31,9 +31,15 @@ class Expense(BaseModel):
     )
 
 
+class Expenses(BaseModel):
+    expenses: List[Expense] = Field(
+        description="List of Expenses where each expense consist of fields like price, object, dateAndTime and otherdetails."
+    )
+
+
 class AppState(TypedDict):
     user_query: str
-    intent: Intent
+    intent: str
     messages: Annotated[list[AnyMessage], operator.add]
     expenses: Annotated[list[Expense], operator.add]
     relevant_expenses: Annotated[list[Expense], operator.add]
