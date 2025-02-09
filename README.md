@@ -44,8 +44,6 @@ This is a WhatsApp bot that allows users to record their expenses and query past
    - Add your Twilio and Groq API credentials:
    ```ini
    GROQ_API_KEY=your_groq_api_key
-   TWILIO_ACCOUNT_SID=your_twilio_sid
-   TWILIO_AUTH_TOKEN=your_twilio_auth_token
    ```
 4. Run the application:
    ```bash
