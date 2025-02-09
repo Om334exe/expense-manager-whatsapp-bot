@@ -3,6 +3,8 @@
 ## Overview
 This is a WhatsApp bot that allows users to record their expenses and query past expenses using natural language. The bot uses AI to classify user intent, extract structured expense data, and retrieve relevant expense records for queries. It is built using Flask, LangGraph, LangChain, and Twilio for WhatsApp integration.
 
+## DEMO LINK: https://drive.google.com/file/d/12zrGYkoCI2UFmIGYXiGZEOMOJu3bIYa_/view?usp=sharing
+
 ## Features
 - **Record Expenses**: Users can enter expenses in natural language (e.g., *"Spent 200 on lunch today"*).
 - **Query Expenses**: Users can ask questions like *"How much did I spend on coffee this month?"*.
@@ -63,6 +65,8 @@ This is a WhatsApp bot that allows users to record their expenses and query past
 - **Response**: A WhatsApp message is sent back based on the processed intent.
 
 ## AI Workflow (LangGraph)
+![image](https://github.com/user-attachments/assets/e70590fe-a216-4d28-99d9-f05f8e747ef4)
+
 The AI workflow consists of the following nodes:
 - **Intent Classification** → Identifies whether the user input is an expense, query, or other.
 - **Parse Expense** → Extracts structured data when an expense is recorded.
