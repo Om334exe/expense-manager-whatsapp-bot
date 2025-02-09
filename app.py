@@ -1,6 +1,7 @@
 import warnings
 
 warnings.filterwarnings("ignore")
+
 from flask import Flask, request
 from googlesearch import search
 from twilio.twiml.messaging_response import MessagingResponse
@@ -13,21 +14,29 @@ import calendar
 from prompts import *
 from dotenv import load_dotenv
 import os
+import json
 from langgraph.graph import END, StateGraph
+import subprocess
 
 load_dotenv()
 
 app = Flask(__name__)
 
 
-llm = ChatGroq(
+light_llm = ChatGroq(
     model="llama-3.1-8b-instant",
+    temperature=0,
+    api_key=os.getenv("GROQ_API_KEY"),
+)
+heavy_llm = ChatGroq(
+    model="llama-3.3-70b-versatile",
     temperature=0,
     api_key=os.getenv("GROQ_API_KEY"),
 )
 
 
 def intent_classification_node(state: AppState):
+
     intent_prompt = PromptTemplate(
         input_variables=["user_input"], template=intent_prompt_template
     )
@@ -36,7 +45,7 @@ def intent_classification_node(state: AppState):
 
     prompt = intent_prompt.format(user_input=user_message)
 
-    structured_llm = llm.with_structured_output(Intent)
+    structured_llm = light_llm.with_structured_output(Intent)
 
     parsed_data = structured_llm.invoke(prompt)
 
@@ -62,7 +71,7 @@ def parse_expense_node(state: AppState):
         day=calendar.day_name[date.today().weekday()],
     )
 
-    structured_llm = llm.with_structured_output(Expenses)
+    structured_llm = light_llm.with_structured_output(Expenses)
 
     parsed_data = structured_llm.invoke(prompt)
 
@@ -70,13 +79,76 @@ def parse_expense_node(state: AppState):
     return {"expenses": parsed_data.expenses}
 
 
-def final_response_node(state: AppState):
-    # state["final_,response"] = state.get("db_result", "Expense recorded.")
-    return {"final_response": "All queries processed perfectly!"}
+def sum_expenses(list_of_expenses: List[int]) -> str:
+    """Calculate and return a formatted string representing the total sum of expenses.
+
+    This function takes a list of integer expense amounts, computes their sum, and
+    returns a string that includes the total expense amount in a human-readable format.
+
+    Args:
+        list_of_expenses (List[int]): A list of integers where each integer represents
+            an individual expense amount (for example, in INR).
+
+    Returns:
+        str: A formatted string stating the sum of all the expenses.
+    """
+    return f"Sum of All the expenses is: {sum(list_of_expenses)}"
 
 
 def query_expense_node(state: AppState):
-    pass
+    query_prompt = PromptTemplate(
+        input_variables=["user_input"], template=query_prompt_template
+    )
+
+    expenses_json = []
+
+    for expense in state["expenses"]:
+        expense_obj = {
+            "price": expense.price,
+            "object": expense.object,
+            "day": expense.day,
+            "dateAndTime": str(expense.dateAndTime),
+            "otherDetails": expense.otherDetails,
+        }
+        expenses_json.append(expense_obj)
+
+    user_message = state["user_query"]
+    with open("tempfile.json", "w") as f:
+        json.dump(expenses_json, f, default=str)
+    prompt = query_prompt.format(
+        user_input=user_message,
+    )
+    output_code = heavy_llm.invoke(prompt)
+    if "```python" in output_code.content:
+        output_code = output_code.content[9:-3]
+
+    with open("temp.py", "w") as f:
+        f.write(output_code)
+
+    try:
+        query_response = subprocess.run(
+            ["python3", "temp.py"], capture_output=True, text=True, timeout=10
+        )
+    except:
+        query_prompt = PromptTemplate(
+            input_variables=["user_input", "expenses_data"],
+            template=query_prompt_template_backup,
+        )
+        prompt = query_prompt.format(
+            user_input=user_message, exepenses_data=str(expenses_json)
+        )
+        query_response = heavy_llm.invoke(prompt).content
+    print("--------------------------------")
+    print(output_code)
+    print("--------------------------------")
+    print(query_response)
+    print("--------------------------------")
+
+    return {"query_response": query_response}
+
+
+def final_response_node(state: AppState):
+    return {"final_response": "All queries processed perfectly!"}
 
 
 def intent_check(state: AppState):
@@ -123,6 +195,8 @@ def main():
     user_msg = "Today I bought a coffee for 20 rs and a coca cola for 80 rs."
     # state = intent_classification_node({"user_query": user_msg})
     state = graph_app.invoke({"user_query": user_msg})
+    state["user_query"] = "Give me all expenses whose price is greater than 50 rs."
+    state = graph_app.invoke(state)
 
     print(state)
 

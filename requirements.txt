@@ -1,0 +1,7 @@
+flask
+googlesearch-python
+twilio
+langchain
+langgraph
+langchain-groq
+langchain_community

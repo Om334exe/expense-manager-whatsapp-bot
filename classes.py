@@ -42,5 +42,5 @@ class AppState(TypedDict):
     intent: str
     messages: Annotated[list[AnyMessage], operator.add]
     expenses: Annotated[list[Expense], operator.add]
-    relevant_expenses: Annotated[list[Expense], operator.add]
+    query_response: str
     final_response: str
