@@ -17,11 +17,16 @@ import os
 import json
 from langgraph.graph import END, StateGraph
 import subprocess
+from langchain_core.chat_history import InMemoryChatMessageHistory
+from langchain_core.chat_history import BaseChatMessageHistory
+from langchain_core.runnables.history import RunnableWithMessageHistory
+from langchain_core.messages import ToolMessage, HumanMessage, SystemMessage
 
 load_dotenv()
 
 app = Flask(__name__)
 
+state_db = {}
 
 light_llm = ChatGroq(
     model="llama-3.1-8b-instant",
@@ -33,6 +38,28 @@ heavy_llm = ChatGroq(
     temperature=0,
     api_key=os.getenv("GROQ_API_KEY"),
 )
+
+
+def expenses_to_json(expenses: Expenses) -> dict:
+
+    expenses_json = []
+
+    for expense in expenses:
+        expense_obj = {
+            "price": expense.price,
+            "object": expense.object,
+            "day": expense.day,
+            "dateAndTime": str(expense.dateAndTime),
+            "otherDetails": expense.otherDetails,
+        }
+        expenses_json.append(expense_obj)
+    return expenses_json
+
+
+def get_session_history(session_id: str) -> BaseChatMessageHistory:
+    if session_id not in state_db:
+        state_db[session_id] = InMemoryChatMessageHistory()
+    return state_db[session_id]
 
 
 def intent_classification_node(state: AppState):
@@ -76,7 +103,7 @@ def parse_expense_node(state: AppState):
     parsed_data = structured_llm.invoke(prompt)
 
     print(parsed_data)
-    return {"expenses": parsed_data.expenses}
+    return {"expenses": parsed_data.expenses, "new_expenses": parsed_data.expenses}
 
 
 def sum_expenses(list_of_expenses: List[int]) -> str:
@@ -100,17 +127,7 @@ def query_expense_node(state: AppState):
         input_variables=["user_input"], template=query_prompt_template
     )
 
-    expenses_json = []
-
-    for expense in state["expenses"]:
-        expense_obj = {
-            "price": expense.price,
-            "object": expense.object,
-            "day": expense.day,
-            "dateAndTime": str(expense.dateAndTime),
-            "otherDetails": expense.otherDetails,
-        }
-        expenses_json.append(expense_obj)
+    expenses_json = expenses_to_json(state["expenses"])
 
     user_message = state["user_query"]
     with open("tempfile.json", "w") as f:
@@ -148,7 +165,34 @@ def query_expense_node(state: AppState):
 
 
 def final_response_node(state: AppState):
-    return {"final_response": "All queries processed perfectly!"}
+    if state["intent"] == "Expense":
+        final_prompt = PromptTemplate(
+            input_variables=["new_expenses"], template=final_response_prompt["Expense"]
+        )
+        prompt = final_prompt.format(
+            new_expenses=str(expenses_to_json(state["new_expenses"]))
+        )
+    elif state["intent"] == "Query":
+        final_prompt = PromptTemplate(
+            input_variables=["query_response", "user_query"],
+            template=final_response_prompt["Query"],
+        )
+        prompt = final_prompt.format(
+            query_response=state["query_response"], user_query=state["user_query"]
+        )
+    else:
+        final_prompt = PromptTemplate(
+            input_variables=["user_query"],
+            template=final_response_prompt["Others"],
+        )
+        prompt = final_prompt.format(user_query=state["user_query"])
+
+    prompt = HumanMessage(prompt)
+    # state["messages"].append(prompt)
+    response = heavy_llm.invoke(state["messages"] + [prompt])
+    # state["messages"].pop()
+
+    return {"final_response": response.content, "messages": [response]}
 
 
 def intent_check(state: AppState):
@@ -198,7 +242,7 @@ def main():
     state["user_query"] = "Give me all expenses whose price is greater than 50 rs."
     state = graph_app.invoke(state)
 
-    print(state)
+    print(state["final_response"])
 
     # user = request.values.get("From", "").split(":")[1]
     # intent_classification_node(user_message=user_msg)

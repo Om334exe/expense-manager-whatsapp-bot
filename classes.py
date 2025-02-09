@@ -38,9 +38,11 @@ class Expenses(BaseModel):
 
 
 class AppState(TypedDict):
+    user_id: str
     user_query: str
     intent: str
     messages: Annotated[list[AnyMessage], operator.add]
     expenses: Annotated[list[Expense], operator.add]
+    new_expenses: list[Expense]
     query_response: str
     final_response: str
