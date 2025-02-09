@@ -3,7 +3,6 @@ import warnings
 warnings.filterwarnings("ignore")
 
 from flask import Flask, request
-from googlesearch import search
 from twilio.twiml.messaging_response import MessagingResponse
 from classes import *
 from datetime import date
@@ -17,9 +16,6 @@ import os
 import json
 from langgraph.graph import END, StateGraph
 import subprocess
-from langchain_core.chat_history import InMemoryChatMessageHistory
-from langchain_core.chat_history import BaseChatMessageHistory
-from langchain_core.runnables.history import RunnableWithMessageHistory
 from langchain_core.messages import ToolMessage, HumanMessage, SystemMessage
 import pickle
 
