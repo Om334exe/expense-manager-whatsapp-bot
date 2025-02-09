@@ -1,0 +1,10 @@
+.env
+.venv
+exp.ipynb
+output.txt
+state_db.pkl
+temp.py
+tempfile.json
+output.txt
+__pycache__
+.DS_Store 

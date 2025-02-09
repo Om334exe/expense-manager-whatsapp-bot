@@ -28,7 +28,7 @@ You are a Python code generator. Your task is to generate only Python code that 
 2. Each expense record is an object with the following keys:
    - "price": a number representing the expense amount in INR,
    - "object": a string describing the expense item,
-   - "date": a date string in YYYY-MM-DD format,
+   - "day": a string describing on which the expense was made,
    - "dateAndTime": a date and time string in YYYY-MM-DD HH:MM:SS format (if missing, default to today's date and current time),
    - "otherDetails": a string containing any extra relevant detail or remark.
 3. Filter the expense records to select only those that are relevant to the user's query. and also compute the final answer of the query. The user's query is provided in the variable user_query in the end.

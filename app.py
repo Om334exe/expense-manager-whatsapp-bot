@@ -21,6 +21,7 @@ from langchain_core.chat_history import InMemoryChatMessageHistory
 from langchain_core.chat_history import BaseChatMessageHistory
 from langchain_core.runnables.history import RunnableWithMessageHistory
 from langchain_core.messages import ToolMessage, HumanMessage, SystemMessage
+import pickle
 
 load_dotenv()
 
@@ -56,9 +57,10 @@ def expenses_to_json(expenses: Expenses) -> dict:
     return expenses_json
 
 
-def get_session_history(session_id: str) -> BaseChatMessageHistory:
+def get_session_history(session_id: str) -> AppState:
+    # print(state_db)
     if session_id not in state_db:
-        state_db[session_id] = InMemoryChatMessageHistory()
+        state_db[session_id] = AppState()
     return state_db[session_id]
 
 
@@ -142,22 +144,28 @@ def query_expense_node(state: AppState):
     with open("temp.py", "w") as f:
         f.write(output_code)
 
-    try:
-        query_response = subprocess.run(
-            ["python3", "temp.py"], capture_output=True, text=True, timeout=10
-        )
-    except:
+    query_response = subprocess.run(
+        ["python3", "temp.py"], capture_output=True, text=True, timeout=10
+    )  # os.system("python3 temp.py")
+    # with open("tempout.txt", "r") as f:
+    #     query_response = f.read()
+    # print(query_response.stderr)
+    print("--------------------------------")
+    print(output_code)
+    print("--------------------------------")
+    print(query_response)
+    print("--------------------------------")
+    if query_response.returncode != 0:
         query_prompt = PromptTemplate(
             input_variables=["user_input", "expenses_data"],
             template=query_prompt_template_backup,
         )
         prompt = query_prompt.format(
-            user_input=user_message, exepenses_data=str(expenses_json)
+            user_input=user_message, expenses_data=str(expenses_json)
         )
         query_response = heavy_llm.invoke(prompt).content
-    print("--------------------------------")
-    print(output_code)
-    print("--------------------------------")
+    else:
+        query_response = query_response.stdout
     print(query_response)
     print("--------------------------------")
 
@@ -211,7 +219,11 @@ graph.add_node("final_response_node", final_response_node)
 graph.add_conditional_edges(
     "intent_classifier_node",
     intent_check,
-    {"Query": "query_expense_node", "Expense": "parse_expense_node"},
+    {
+        "Query": "query_expense_node",
+        "Expense": "parse_expense_node",
+        "Others": "final_response_node",
+    },
 )
 
 graph.add_edge("parse_expense_node", "final_response_node")
@@ -226,37 +238,53 @@ graph_app = graph.compile()
 # with open("my_graph.png", "wb") as f:
 #     f.write(png_graph)
 
-print(f"Graph saved as 'my_graph.png' in {os.getcwd()}")
+# print(f"Graph saved as 'my_graph.png' in {os.getcwd()}")
 # graph.add_node()
 
 
-# @app.route("/", methods=["POST"])
+@app.route("/", methods=["POST"])
 def main():
+    global state_db
 
-    # user input
+    state_db_file = "state_db.pkl"
+    if not (os.path.exists(state_db_file)):
+        with open(state_db_file, "wb") as f:
+            pickle.dump(state_db, f)
+    else:
+        with open(state_db_file, "rb") as f:
+            state_db = pickle.load(f)
 
-    # user_msg = request.values.get("Body", "")
-    user_msg = "Today I bought a coffee for 20 rs and a coca cola for 80 rs."
-    # state = intent_classification_node({"user_query": user_msg})
-    state = graph_app.invoke({"user_query": user_msg})
-    state["user_query"] = "Give me all expenses whose price is greater than 50 rs."
+    user_msg = request.values.get("Body", "")
+    user = request.values.get("From", "").split(":")[1]
+
+    # # user_msg = "Today I bought a coffee for 20 rs and a coca cola for 80 rs."
+    state = get_session_history(user)
+    state["user_query"] = user_msg
+
+    # # state = intent_classification_node({"user_query": user_msg})
+
+    # state = state_db
+    # state = graph_app.invoke({"user_query": user_msg})
+    # state["user_query"] = "Give me all expenses whose price is greater than 50 rs."
     state = graph_app.invoke(state)
 
-    print(state["final_response"])
+    final_response = state["final_response"]
 
-    # user = request.values.get("From", "").split(":")[1]
-    # intent_classification_node(user_message=user_msg)
+    state_db[user] = state
 
-    # creating object of MessagingResponse
+    with open(state_db_file, "wb") as f:
+        pickle.dump(state_db, f)
+
+    # # intent_classification_node(user_message=user_msg)
+
+    # # creating object of MessagingResponse
     response = MessagingResponse()
 
-    # response.message(
-    #     f"Your message recieved: {}, from user number: {} and output is {str(parse_expense_node(user_msg))}"
-    # )
+    response.message(final_response)
 
     return str(response)
 
 
-main()
-# if __name__ == "__main__":
-#     app.run(port=5002, debug=True)
+# main()/
+if __name__ == "__main__":
+    app.run(port=5002)
